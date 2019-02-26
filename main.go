@@ -1,17 +1,45 @@
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
-	"log"
 	"net"
 	"os"
+
+	"github.com/mrWinston/dnsotlsproxy/listeners"
+	"github.com/mrWinston/dnsotlsproxy/resolver"
+	"github.com/sirupsen/logrus"
 )
 
+var shutdown = make(chan bool, 1)
+var osSig = make(chan os.Signal, 1)
+
+func handleOsSignal() {
+	sig := <-osSig
+	logrus.Info("Received ", sig)
+	logrus.Info("Shutting Down")
+	shutdown <- true
+}
+
 func main() {
+	dnsUpstream := resolver.Resolver{
+		RemoteIp:   "1.1.1.1",
+		RemotePort: 853,
+	}
+
+	udpListener, err := listeners.NewUdpListener("0.0.0.0", 8053, &dnsUpstream)
+
+	if err != nil {
+		logError(err, "Error creating UDP Listener")
+		return
+	}
+	defer udpListener.Shutdown()
+	<-shutdown
+
+}
+func main2() {
 	l, err := net.Listen("tcp", "0.0.0.0"+":"+"8053")
 	if err != nil {
-		log.Error("Error listening:", err.Error())
+		logError(err, "Error starting TCP server")
 		os.Exit(1)
 	}
 	// Close the listener when the application closes.
@@ -21,7 +49,7 @@ func main() {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
+			logError(err, "Error listening for Messages")
 			os.Exit(1)
 		}
 		// Handle connections in a new goroutine.
@@ -37,25 +65,24 @@ func handleRequest(conn net.Conn) {
 	// Read the incoming connection into the buffer.
 	reqLen, err := conn.Read(buf)
 	if err != nil {
-		fmt.Println("Error reading:", err.Error())
+		logError(err, "Error reading DNS Request")
+	}
+	dnsResolver := &resolver.Resolver{
+		RemoteIp:   "1.1.1.1",
+		RemotePort: 853,
 	}
 
-	log.Info("Initiating TLS Conn")
-	conf := &tls.Config{}
-	tlsconn, err := tls.Dial("tcp", "1.1.1.1:853", conf)
-	defer tlsconn.Close()
+	n, tlsbuf, err := dnsResolver.ForwardDns(buf[:reqLen])
 
-	n, err := tlsconn.Write(buf[:reqLen])
 	if err != nil {
-		log.Println(n, err)
-		return
-	}
-	tlsbuf := make([]byte, 1000)
-	n, err = tlsconn.Read(tlsbuf)
-	if err != nil {
-		log.Println(n, err)
-		return
+		logError(err, "Error getting DNS over Tls")
 	}
 
 	conn.Write(tlsbuf[:n])
+}
+
+func logError(err error, msg string) {
+	logrus.WithFields(logrus.Fields{
+		"error": err,
+	}).Error(msg)
 }
