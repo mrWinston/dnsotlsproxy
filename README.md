@@ -3,6 +3,8 @@
 This Program implements a DNS-Over-TLS Proxy service. It accepts DNS Queries
 via TCP and UDP and forwards them to a DNSoTLS Service of your choice.
 
+It uses Golang 1.11 with go-modules.
+
 
 ## Using the Service
 
