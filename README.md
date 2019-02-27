@@ -84,3 +84,9 @@ Also, the server implementation leaves room for improvement. The UDP listener
 does not support concurrent requests at the moment, while the TCP
 implementation does to some extend. I would  still not use this in a high load
 scenario.
+
+In case the Upstream DNS Server uses padding in their responses, said padding
+is NOT removed from the dns responses. Right now, i don't see any downside in
+doing so. If, in the future this shows to be a problem, the padding would have
+to be stripped and the Padding metadata (see
+[here](https://tools.ietf.org/html/rfc7830)) would have to be removed. 
