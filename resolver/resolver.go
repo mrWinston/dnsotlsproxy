@@ -21,7 +21,9 @@ func (resolver *Resolver) ForwardDns(request []byte) (int, []byte, error) {
 	conn, err := tls.Dial(
 		"tcp",
 		fmt.Sprintf("%s:%s", resolver.RemoteIp, resolver.RemotePort),
-		&tls.Config{},
+		&tls.Config{
+			MinVersion: 2,
+		},
 	)
 
 	if err != nil {
