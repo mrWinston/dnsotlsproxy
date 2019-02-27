@@ -9,7 +9,7 @@ import (
 
 type Resolver struct {
 	RemoteIp   string
-	RemotePort int
+	RemotePort string
 }
 
 // ForwardDns takes a dns request in TCP format, forwards it to a dns over TLS
@@ -20,7 +20,7 @@ func (resolver *Resolver) ForwardDns(request []byte) (int, []byte, error) {
 
 	conn, err := tls.Dial(
 		"tcp",
-		fmt.Sprintf("%s:%d", resolver.RemoteIp, resolver.RemotePort),
+		fmt.Sprintf("%s:%s", resolver.RemoteIp, resolver.RemotePort),
 		&tls.Config{},
 	)
 
@@ -28,6 +28,7 @@ func (resolver *Resolver) ForwardDns(request []byte) (int, []byte, error) {
 		logError(err, "Error initiaiting TLS connection")
 		return 0, nil, err
 	}
+
 	defer conn.Close()
 
 	buf := make([]byte, 65535)
@@ -45,9 +46,6 @@ func (resolver *Resolver) ForwardDns(request []byte) (int, []byte, error) {
 		logError(err, "Error receiving Dns Response")
 		return 0, nil, err
 	}
-	logrus.WithFields(logrus.Fields{
-		"buf": buf[:n],
-	}).Debug("Got a buffer back")
 
 	return n, buf[:n], nil
 }

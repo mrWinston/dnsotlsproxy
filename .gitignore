@@ -12,3 +12,6 @@
 *.out
 
 dnsotlsproxy
+test.sh
+main
+app

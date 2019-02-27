@@ -1,0 +1,13 @@
+version: '3.4'
+
+services:
+  dnsproxy:
+    build: .
+    image: dnsotlsproxy
+    environment:
+      - "UDP_PORT=8053"
+      - "TCP_PORT=8053"
+      - "LOG_LEVEL=info"
+    ports:
+      - "8053:8053/tcp"
+      - "8053:8053/udp"

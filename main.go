@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/mrWinston/dnsotlsproxy/listeners"
 	"github.com/mrWinston/dnsotlsproxy/resolver"
@@ -21,64 +22,51 @@ func handleOsSignal() {
 }
 
 func main() {
+	signal.Notify(osSig, syscall.SIGINT, syscall.SIGTERM)
+	go handleOsSignal()
+
+	settings := getSettingsFromEnvVars()
+
+	logrus.SetLevel(settings.LogLevel)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+
+	logrus.Info(fmt.Sprintf("Starting DnsProxy with these settings: %v", settings))
+
 	dnsUpstream := resolver.Resolver{
-		RemoteIp:   "1.1.1.1",
-		RemotePort: 853,
+		RemoteIp:   settings.DnsUpstreamAddress,
+		RemotePort: settings.DnsUpstreamPort,
 	}
 
-	udpListener, err := listeners.NewUdpListener("0.0.0.0", 8053, &dnsUpstream)
-
+	udpListener, err := listeners.NewUdpListener(
+		settings.UdpAddress,
+		settings.UdpPort,
+		&dnsUpstream,
+	)
 	if err != nil {
 		logError(err, "Error creating UDP Listener")
 		return
 	}
+
+	logrus.Info("Started UDP Listener")
+
+	tcpListener, err := listeners.NewTcpListener(
+		settings.TcpAddress,
+		settings.TcpPort,
+		&dnsUpstream,
+	)
+	if err != nil {
+		logError(err, "Error creating TCP Listener")
+		udpListener.Shutdown()
+		return
+	}
+	logrus.Info("Started TCP Listener")
+
+	defer tcpListener.Shutdown()
 	defer udpListener.Shutdown()
 	<-shutdown
 
-}
-func main2() {
-	l, err := net.Listen("tcp", "0.0.0.0"+":"+"8053")
-	if err != nil {
-		logError(err, "Error starting TCP server")
-		os.Exit(1)
-	}
-	// Close the listener when the application closes.
-	defer l.Close()
-	fmt.Println("Listening on " + "0.0.0.0" + ":" + "8053")
-	for {
-		// Listen for an incoming connection.
-		conn, err := l.Accept()
-		if err != nil {
-			logError(err, "Error listening for Messages")
-			os.Exit(1)
-		}
-		// Handle connections in a new goroutine.
-		go handleRequest(conn)
-	}
-}
-
-// Handles incoming requests.
-func handleRequest(conn net.Conn) {
-	defer conn.Close()
-	// Make a buffer to hold incoming data.
-	buf := make([]byte, 1024)
-	// Read the incoming connection into the buffer.
-	reqLen, err := conn.Read(buf)
-	if err != nil {
-		logError(err, "Error reading DNS Request")
-	}
-	dnsResolver := &resolver.Resolver{
-		RemoteIp:   "1.1.1.1",
-		RemotePort: 853,
-	}
-
-	n, tlsbuf, err := dnsResolver.ForwardDns(buf[:reqLen])
-
-	if err != nil {
-		logError(err, "Error getting DNS over Tls")
-	}
-
-	conn.Write(tlsbuf[:n])
 }
 
 func logError(err error, msg string) {
